@@ -1,22 +1,11 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { createClient, RedisClientType } from 'redis';
+import { Injectable, Inject } from '@nestjs/common';
+import type { RedisClientType } from 'redis';
 
 @Injectable()
-export class AppService implements OnModuleInit {
-  // Tạo một biến để chứa công cụ kết nối Redis với kiểu dữ liệu rõ ràng
-  private redisClient: RedisClientType;
-
-  // Hàm này sẽ tự động chạy khi dự án NestJS vừa khởi động lên
-  async onModuleInit(): Promise<void> {
-    // 1. Cấu hình địa chỉ của máy chủ Redis (Localhost, cổng 6379)
-    this.redisClient = createClient({
-      url: 'redis://127.0.0.1:6379',
-    });
-
-    // 2. Bắt đầu kết nối
-    await this.redisClient.connect();
-    console.log('Đã kết nối thành công với Redis Server!');
-  }
+export class AppService {
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly redisClient: RedisClientType,
+  ) {}
 
   // Hàm lưu dữ liệu vào Redis
   async luuDuLieu(): Promise<string> {
@@ -55,6 +44,63 @@ export class AppService implements OnModuleInit {
     console.log('Dữ liệu User lấy từ Redis:', thongTinUser);
 
     return thongTinUser;
+  }
+
+  async capNhatDiemNguoiChoi() {
+    // Tương đương lệnh: ZADD bxh_game 100 "Alice" 200 "Bob" 150 "Charlie"
+    // Khi bạn gọi hàm này, Redis sẽ tự động đưa Bob lên cao nhất, tiếp theo là Charlie và Alice.
+    await this.redisClient.zAdd('bxh_game', [
+      { score: 100, value: 'Alice' },
+      { score: 200, value: 'Bob' },
+      { score: 150, value: 'Charlie' },
+    ]);
+
+    return 'Đã cập nhật điểm số cho người chơi vào Bảng xếp hạng!';
+  }
+
+  // Hàm 2: Lấy ra Top những người chơi điểm cao nhất
+  async layBangXepHang() {
+    // Tương đương lệnh: ZRANGE bxh_game 0 2 WITHSCORES
+    // { REV: true } nghĩa là lấy ngược từ cao xuống thấp (Reverse)
+    // 0 và 2 nghĩa là lấy từ vị trí số 0 đến vị trí số 2 (Tức là Top 3 người cao nhất)
+    const topNguoiChoi = await this.redisClient.zRangeWithScores(
+      'bxh_game',
+      0,
+      2,
+      { REV: true },
+    );
+
+    console.log('Top 3 người chơi điểm cao nhất:', topNguoiChoi);
+    return topNguoiChoi;
+  }
+
+  // -----------------------------------------------------
+  // THỰC HÀNH REDIS LIST: MESSAGE QUEUE (HÀNG ĐỢI TÁC VỤ)
+  // -----------------------------------------------------
+
+  // Hàm 1: Đưa tác vụ vào hàng đợi (Ví dụ: Gửi email)
+  async taoTacVuGuiEmail(email: string) {
+    // Tương đương lệnh: LPUSH hang_doi_email "user@example.com"
+    // Đẩy địa chỉ email cần gửi vào đầu danh sách
+    await this.redisClient.lPush('hang_doi_email', email);
+
+    return `Đã đưa email ${email} vào hàng đợi. Hệ thống sẽ tự động gửi ngầm sau!`;
+  }
+
+  // Hàm 2: Lấy tác vụ ra khỏi hàng đợi để xử lý (Consumer)
+  async xuLyEmailTrongHangDoi() {
+    // Tương đương lệnh: RPOP hang_doi_email
+    // Lấy phần tử ở cuối danh sách (người vào đầu tiên) ra để xử lý và xóa khỏi hàng đợi
+    const emailCanGui = await this.redisClient.rPop('hang_doi_email');
+
+    if (emailCanGui) {
+      console.log(
+        `Đang tiến hành gọi API gửi email thực sự tới: ${emailCanGui}`,
+      );
+      return `Đã xử lý xong email của: ${emailCanGui}`;
+    } else {
+      return 'Hàng đợi đang trống, không có email nào chờ xử lý!';
+    }
   }
 
   getHello(): string {

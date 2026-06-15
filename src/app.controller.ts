@@ -29,4 +29,24 @@ export class AppController {
   async layUser(): Promise<Record<string, string>> {
     return this.appService.layThongTinUser();
   }
+
+  @Get('luu-bxh')
+  async luuBxh(): Promise<string> {
+    return this.appService.capNhatDiemNguoiChoi();
+  }
+
+  @Get('lay-bxh')
+  async layBxh(): Promise<any> {
+    return this.appService.layBangXepHang();
+  }
+
+  @Get('luu-email')
+  async luuEmail(): Promise<string> {
+    return this.appService.taoTacVuGuiEmail('than@test.com');
+  }
+
+  @Get('lay-email')
+  async layEmail(): Promise<string> {
+    return this.appService.xuLyEmailTrongHangDoi();
+  }
 }
